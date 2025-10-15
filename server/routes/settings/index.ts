@@ -30,6 +30,7 @@ import { appDataPath } from '@server/utils/appDataVolume';
 import { getAppVersion } from '@server/utils/appVersion';
 import { dnsCache } from '@server/utils/dnsCache';
 import { getHostname } from '@server/utils/getHostname';
+import { resolveLogDirectory } from '@server/utils/logDirectory';
 import type { DnsEntries, DnsStats } from 'dns-caching';
 import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
@@ -559,9 +560,10 @@ settingsRoutes.get(
         filter = ['debug', 'info', 'warn', 'error'];
     }
 
-    const logFile = process.env.CONFIG_DIRECTORY
-      ? `${process.env.CONFIG_DIRECTORY}/logs/.machinelogs.json`
-      : path.join(__dirname, '../../../config/logs/.machinelogs.json');
+    const { directory: logDirectory } = resolveLogDirectory({
+      ensureExists: true,
+    });
+    const logFile = path.join(logDirectory, '.machinelogs.json');
     const logs: LogMessage[] = [];
     const logMessageProperties = [
       'timestamp',
