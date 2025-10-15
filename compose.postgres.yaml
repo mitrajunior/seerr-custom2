@@ -1,5 +1,6 @@
 services:
   jellyseerr:
+    container_name: jellyseerr-custom
     build:
       context: .
       dockerfile: Dockerfile.local
@@ -23,6 +24,7 @@ services:
     links:
       - postgres
   postgres:
+    container_name: postgres-custom
     image: postgres:18
     environment:
       POSTGRES_USER: jellyseerr

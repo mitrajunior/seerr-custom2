@@ -2,7 +2,7 @@ import PlexTvAPI from '@server/api/plextv';
 import type { SortOptions } from '@server/api/themoviedb';
 import TheMovieDb from '@server/api/themoviedb';
 import type { TmdbKeyword } from '@server/api/themoviedb/interfaces';
-import { MediaType } from '@server/constants/media';
+import { MediaStatus, MediaType } from '@server/constants/media';
 import { getRepository } from '@server/datasource';
 import Media from '@server/entity/Media';
 import { User } from '@server/entity/User';
@@ -51,6 +51,62 @@ export const createTmdbWithRegionLanguage = (user?: User): TheMovieDb => {
 
 const discoverRoutes = Router();
 
+const availabilityFilterSchema = z.enum(['all', 'full', 'any', 'none']);
+type AvailabilityFilter = z.infer<typeof availabilityFilterSchema>;
+
+type ResultWithMedia<T> = {
+  result: T;
+  media?: Media;
+};
+
+const isMediaFullyAvailable = (media?: Media) =>
+  !!media &&
+  (media.status === MediaStatus.AVAILABLE ||
+    media.status4k === MediaStatus.AVAILABLE);
+
+const isMediaPartiallyAvailable = (media?: Media) =>
+  !!media &&
+  (media.status === MediaStatus.PARTIALLY_AVAILABLE ||
+    media.status4k === MediaStatus.PARTIALLY_AVAILABLE);
+
+const pairResultsWithMedia = <T extends { id: number }>(
+  results: T[],
+  media: Media[],
+  mediaType: MediaType
+): ResultWithMedia<T>[] =>
+  results.map((result) => ({
+    result,
+    media: media.find(
+      (item) => item.tmdbId === result.id && item.mediaType === mediaType
+    ),
+  }));
+
+const filterResultsByAvailability = <T extends { id: number }>(
+  items: ResultWithMedia<T>[],
+  mediaType: MediaType,
+  availability?: AvailabilityFilter
+): ResultWithMedia<T>[] => {
+  if (!availability || availability === 'all') {
+    return items;
+  }
+
+  return items.filter(({ media }) => {
+    const isFull = isMediaFullyAvailable(media);
+    const isPartial = isMediaPartiallyAvailable(media);
+
+    switch (availability) {
+      case 'full':
+        return isFull;
+      case 'any':
+        return mediaType === MediaType.TV ? isFull || isPartial : isFull;
+      case 'none':
+        return mediaType === MediaType.TV ? !isFull && !isPartial : !isFull;
+      default:
+        return true;
+    }
+  });
+};
+
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
   sortBy: z.coerce.string().optional(),
@@ -78,6 +134,7 @@ const QueryFilterOptions = z.object({
   certificationLte: z.coerce.string().optional(),
   certificationCountry: z.coerce.string().optional(),
   certificationMode: z.enum(['exact', 'range']).optional(),
+  availability: availabilityFilterSchema.optional(),
 });
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
@@ -127,6 +184,17 @@ discoverRoutes.get('/movies', async (req, res, next) => {
       data.results.map((result) => result.id)
     );
 
+    const resultsWithMedia = pairResultsWithMedia(
+      data.results,
+      media,
+      MediaType.MOVIE
+    );
+    const filteredResults = filterResultsByAvailability(
+      resultsWithMedia,
+      MediaType.MOVIE,
+      query.availability
+    );
+
     let keywordData: TmdbKeyword[] = [];
     if (keywords) {
       const splitKeywords = keywords.split(',');
@@ -145,16 +213,10 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
-      totalResults: data.total_results,
+      totalResults: filteredResults.length,
       keywords: keywordData,
-      results: data.results.map((result) =>
-        mapMovieResult(
-          result,
-          media.find(
-            (req) =>
-              req.tmdbId === result.id && req.mediaType === MediaType.MOVIE
-          )
-        )
+      results: filteredResults.map(({ result, media: mediaInfo }) =>
+        mapMovieResult(result, mediaInfo)
       ),
     });
   } catch (e) {
@@ -420,6 +482,17 @@ discoverRoutes.get('/tv', async (req, res, next) => {
       data.results.map((result) => result.id)
     );
 
+    const resultsWithMedia = pairResultsWithMedia(
+      data.results,
+      media,
+      MediaType.TV
+    );
+    const filteredResults = filterResultsByAvailability(
+      resultsWithMedia,
+      MediaType.TV,
+      query.availability
+    );
+
     let keywordData: TmdbKeyword[] = [];
     if (keywords) {
       const splitKeywords = keywords.split(',');
@@ -438,15 +511,10 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
-      totalResults: data.total_results,
+      totalResults: filteredResults.length,
       keywords: keywordData,
-      results: data.results.map((result) =>
-        mapTvResult(
-          result,
-          media.find(
-            (med) => med.tmdbId === result.id && med.mediaType === MediaType.TV
-          )
-        )
+      results: filteredResults.map(({ result, media: mediaInfo }) =>
+        mapTvResult(result, mediaInfo)
       ),
     });
   } catch (e) {
