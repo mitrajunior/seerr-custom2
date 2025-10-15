@@ -8,7 +8,7 @@ metadata:
     "helm.sh/hook": test
 spec:
   containers:
-    - name: wget
+    - name: wget-custom
       image: busybox
       command: ['wget']
       args: ['{{ include "seerr.fullname" . }}:{{ .Values.service.port }}']

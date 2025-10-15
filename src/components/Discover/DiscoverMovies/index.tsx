@@ -31,6 +31,11 @@ const messages = defineMessages('components.Discover.DiscoverMovies', {
   sortTmdbRatingDesc: 'TMDB Rating Descending',
   sortTitleAsc: 'Title (A-Z) Ascending',
   sortTitleDesc: 'Title (Z-A) Descending',
+  availability: 'Availability',
+  availabilityAll: 'All',
+  availabilityFull: 'Available (complete)',
+  availabilityAny: 'Available or partial (series)',
+  availabilityNone: 'Not yet available',
 });
 
 const SortOptions: Record<string, TMDBSortOptions> = {
@@ -50,6 +55,12 @@ const DiscoverMovies = () => {
   const updateQueryParams = useUpdateQueryParams({});
 
   const preparedFilters = prepareFilterValues(router.query);
+  const selectedAvailability = preparedFilters.availability ?? 'all';
+  const discoverFilters: FilterOptions = {
+    ...preparedFilters,
+    availability: selectedAvailability,
+  };
+  const shouldHideAvailable = selectedAvailability === 'none';
 
   const {
     isLoadingInitialData,
@@ -61,7 +72,8 @@ const DiscoverMovies = () => {
     error,
   } = useDiscover<MovieResult, unknown, FilterOptions>(
     '/api/v1/discover/movies',
-    preparedFilters
+    discoverFilters,
+    { hideAvailable: shouldHideAvailable }
   );
   const [showFilters, setShowFilters] = useState(false);
 
@@ -111,6 +123,39 @@ const DiscoverMovies = () => {
               </option>
               <option value={SortOptions.TitleDesc}>
                 {intl.formatMessage(messages.sortTitleDesc)}
+              </option>
+            </select>
+          </div>
+          <div className="mb-2 flex flex-grow sm:mb-0 sm:mr-2 lg:flex-grow-0">
+            <label htmlFor="availability" className="sr-only">
+              {intl.formatMessage(messages.availability)}
+            </label>
+            <span className="inline-flex cursor-default items-center rounded-l-md border border-r-0 border-gray-500 bg-gray-800 px-3 text-gray-100 sm:text-sm">
+              {intl.formatMessage(messages.availability)}
+            </span>
+            <select
+              id="availability"
+              name="availability"
+              className="rounded-r-only"
+              value={selectedAvailability}
+              onChange={(e) =>
+                updateQueryParams(
+                  'availability',
+                  e.target.value === 'all' ? undefined : e.target.value
+                )
+              }
+            >
+              <option value="all">
+                {intl.formatMessage(messages.availabilityAll)}
+              </option>
+              <option value="full">
+                {intl.formatMessage(messages.availabilityFull)}
+              </option>
+              <option value="any">
+                {intl.formatMessage(messages.availabilityAny)}
+              </option>
+              <option value="none">
+                {intl.formatMessage(messages.availabilityNone)}
               </option>
             </select>
           </div>
