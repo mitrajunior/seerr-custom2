@@ -115,6 +115,7 @@ export const QueryFilterOptions = z.object({
   certificationLte: z.string().optional(),
   certificationCountry: z.string().optional(),
   certificationMode: z.enum(['exact', 'range']).optional(),
+  availability: z.enum(['all', 'full', 'any', 'none']).optional(),
 });
 
 export type FilterOptions = z.infer<typeof QueryFilterOptions>;
@@ -156,6 +157,10 @@ export const prepareFilterValues = (
 
   if (values.status) {
     filterValues.status = values.status;
+  }
+
+  if (values.availability) {
+    filterValues.availability = values.availability;
   }
 
   if (values.keywords) {
