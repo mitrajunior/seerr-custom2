@@ -2,8 +2,10 @@ import { MediaServerType } from '@server/constants/server';
 import { Permission } from '@server/lib/permissions';
 import { runMigrations } from '@server/lib/settings/migrator';
 import { randomUUID } from 'crypto';
+import { constants as fsConstants } from 'fs';
 import fs from 'fs/promises';
 import { merge } from 'lodash';
+import os from 'os';
 import path from 'path';
 import webpush from 'web-push';
 
@@ -366,12 +368,80 @@ export interface AllSettings {
   migrations: string[];
 }
 
-const SETTINGS_PATH = process.env.CONFIG_DIRECTORY
-  ? `${process.env.CONFIG_DIRECTORY}/settings.json`
-  : path.join(__dirname, '../../../config/settings.json');
+const DEFAULT_CONFIG_DIRECTORY = process.env.CONFIG_DIRECTORY
+  ? process.env.CONFIG_DIRECTORY
+  : path.join(__dirname, '../../../config');
+
+const DEFAULT_SETTINGS_PATH = path.join(
+  DEFAULT_CONFIG_DIRECTORY,
+  'settings.json'
+);
+
+const FALLBACK_CONFIG_DIRECTORY = path.join(
+  os.tmpdir(),
+  'jellyseerr',
+  'config'
+);
+
+const FALLBACK_SETTINGS_PATH = path.join(
+  FALLBACK_CONFIG_DIRECTORY,
+  'settings.json'
+);
+
+const ensureWritableDirectory = async (directory: string): Promise<boolean> => {
+  try {
+    await fs.mkdir(directory, { recursive: true });
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    if (code && code !== 'EEXIST') {
+      if (code === 'EACCES') {
+        return false;
+      }
+
+      throw error;
+    }
+  }
+
+  try {
+    await fs.access(directory, fsConstants.W_OK);
+    return true;
+  } catch (error) {
+    const code = (error as NodeJS.ErrnoException).code;
+
+    if (code === 'EACCES') {
+      return false;
+    }
+
+    throw error;
+  }
+};
 
 class Settings {
   private data: AllSettings;
+  private settingsPath: string = DEFAULT_SETTINGS_PATH;
+
+  private async ensureSettingsPath(): Promise<void> {
+    if (this.settingsPath === DEFAULT_SETTINGS_PATH) {
+      const isWritable = await ensureWritableDirectory(
+        DEFAULT_CONFIG_DIRECTORY
+      );
+
+      if (isWritable) {
+        return;
+      }
+    }
+
+    const fallbackWritable = await ensureWritableDirectory(
+      FALLBACK_CONFIG_DIRECTORY
+    );
+
+    if (!fallbackWritable) {
+      throw new Error('Fallback config directory is not writable.');
+    }
+
+    this.settingsPath = FALLBACK_SETTINGS_PATH;
+  }
 
   constructor(initialSettings?: AllSettings) {
     this.data = {
@@ -772,16 +842,41 @@ class Settings {
       return this;
     }
 
-    let data;
+    let data: string | undefined;
+    let loadedFrom: string | undefined;
+
     try {
-      data = await fs.readFile(SETTINGS_PATH, 'utf-8');
-    } catch {
-      await this.save();
+      data = await fs.readFile(DEFAULT_SETTINGS_PATH, 'utf-8');
+      loadedFrom = DEFAULT_SETTINGS_PATH;
+      this.settingsPath = DEFAULT_SETTINGS_PATH;
+    } catch (error) {
+      const err = error as NodeJS.ErrnoException;
+
+      if (err.code && err.code !== 'ENOENT' && err.code !== 'EACCES') {
+        throw error;
+      }
     }
+
+    if (!data) {
+      try {
+        data = await fs.readFile(FALLBACK_SETTINGS_PATH, 'utf-8');
+        loadedFrom = FALLBACK_SETTINGS_PATH;
+        this.settingsPath = FALLBACK_SETTINGS_PATH;
+      } catch (error) {
+        const err = error as NodeJS.ErrnoException;
+
+        if (err.code && err.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+
+    await this.ensureSettingsPath();
+    const pathChanged = Boolean(loadedFrom) && loadedFrom !== this.settingsPath;
 
     if (data) {
       const parsedJson = JSON.parse(data);
-      const migratedData = await runMigrations(parsedJson, SETTINGS_PATH);
+      const migratedData = await runMigrations(parsedJson, this.settingsPath);
       this.data = merge(this.data, migratedData);
     }
 
@@ -805,7 +900,7 @@ class Settings {
       this.data.vapidPublic = vapidKeys.publicKey;
       change = true;
     }
-    if (change) {
+    if (change || pathChanged) {
       await this.save();
     }
 
@@ -813,9 +908,11 @@ class Settings {
   }
 
   public async save(): Promise<void> {
-    const tmp = SETTINGS_PATH + '.tmp';
+    await this.ensureSettingsPath();
+
+    const tmp = `${this.settingsPath}.tmp`;
     await fs.writeFile(tmp, JSON.stringify(this.data, undefined, ' '));
-    await fs.rename(tmp, SETTINGS_PATH);
+    await fs.rename(tmp, this.settingsPath);
   }
 }
 
