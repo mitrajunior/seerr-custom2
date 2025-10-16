@@ -31,7 +31,7 @@ services:
       POSTGRES_PASSWORD: jellyseerr
       POSTGRES_DB: jellyseerr
     ports:
-      - '5433:5432'
+      - '5432:5432'
     volumes:
       - postgres:var/lib/postgresql/18/docker
 volumes:
