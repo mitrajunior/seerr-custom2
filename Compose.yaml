@@ -1,0 +1,54 @@
+services:
+  jellyseerr:
+    container_name: jellyseerr-custom
+    build:
+      context: .
+      dockerfile: Dockerfile
+    # Com Umbrel proxy NÃO mapeamos porta aqui; só expomos internamente
+    expose:
+      - "5055"
+    environment:
+      PORT: "5055"             # garante que o server escuta na 5055
+      DB_TYPE: "postgres"
+      DB_HOST: "postgres"
+      DB_PORT: "5432"
+      DB_USER: "jellyseerr"
+      DB_PASS: "jellyseerr"
+      DB_NAME: "jellyseerr"
+      DB_LOG_QUERIES: "false"
+      DB_USE_SSL: "false"
+      TZ: "Europe/Lisbon"
+    volumes:
+      # se fores desenvolver, mantém; para prod, recomendo remover o bind da raiz do projeto
+      - .:/app:rw,cached
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      postgres:
+        condition: service_started
+
+  app-proxy:
+    image: getumbrel/app-proxy:1.0.0
+    container_name: jellyseerr-proxy
+    ports:
+      - "5057:5057"            # host:proxy
+    environment:
+      APP_HOST: "jellyseerr"   # nome do serviço da app
+      APP_PORT: "5055"         # porta INTERNA da app (exposta acima)
+    depends_on:
+      - jellyseerr
+
+  postgres:
+    container_name: postgres-custom
+    image: postgres:15
+    environment:
+      POSTGRES_USER: jellyseerr
+      POSTGRES_PASSWORD: jellyseerr
+      POSTGRES_DB: jellyseerr
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres:/var/lib/postgresql/data
+
+volumes:
+  postgres:
