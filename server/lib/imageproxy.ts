@@ -1,4 +1,5 @@
 import logger from '@server/logger';
+import { resolveConfigPath } from '@server/utils/configDirectory';
 import { requestInterceptorFunction } from '@server/utils/customProxyAgent';
 import axios from 'axios';
 import rateLimit, { type rateLimitOptions } from 'axios-rate-limit';
@@ -20,9 +21,7 @@ type ImageResponse = {
   imageBuffer: Buffer;
 };
 
-const baseCacheDirectory = process.env.CONFIG_DIRECTORY
-  ? `${process.env.CONFIG_DIRECTORY}/cache/images`
-  : path.join(__dirname, '../../config/cache/images');
+const baseCacheDirectory = resolveConfigPath('cache', 'images');
 
 class ImageProxy {
   public static async clearCache(key: string) {
