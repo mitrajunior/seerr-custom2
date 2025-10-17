@@ -71,10 +71,10 @@ const useDiscover = <
         ...options,
       };
 
-      const finalQueryString = Object.keys(params)
-        .map(
-          (paramKey) =>
-            `${paramKey}=${encodeURIExtraParams(params[paramKey] as string)}`
+      const finalQueryString = Object.entries(params)
+        .filter(([, value]) => value !== undefined && value !== null)
+        .map(([paramKey, value]) =>
+          `${paramKey}=${encodeURIExtraParams(String(value))}`
         )
         .join('&');
 

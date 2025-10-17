@@ -58,7 +58,9 @@ const DiscoverMovies = () => {
   const selectedAvailability = preparedFilters.availability ?? 'all';
   const discoverFilters: FilterOptions = {
     ...preparedFilters,
-    availability: selectedAvailability,
+    ...(selectedAvailability === 'all'
+      ? {}
+      : { availability: selectedAvailability }),
   };
   const shouldHideAvailable = selectedAvailability === 'none';
 
