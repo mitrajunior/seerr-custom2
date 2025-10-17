@@ -5290,6 +5290,14 @@ paths:
             enum: [exact, range]
             example: exact
           description: Determines whether to use exact certification matching or a certification range (internal use only, not sent to TMDB API)
+        - in: query
+          name: availability
+          schema:
+            type: string
+            enum: [all, full, any, none]
+            example: all
+            default: all
+          description: Filters results by local availability status. `full` includes media that is completely available to watch, `any` allows partially available TV series, and `none` excludes all available media.
       responses:
         '200':
           description: Results
@@ -5621,6 +5629,14 @@ paths:
             enum: [exact, range]
             example: exact
           description: Determines whether to use exact certification matching or a certification range (internal use only, not sent to TMDB API)
+        - in: query
+          name: availability
+          schema:
+            type: string
+            enum: [all, full, any, none]
+            example: all
+            default: all
+          description: Filters results by local availability status. `full` includes media that is completely available to watch, `any` allows partially available TV series, and `none` excludes all available media.
       responses:
         '200':
           description: Results
