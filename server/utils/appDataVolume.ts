@@ -1,11 +1,15 @@
-import { accessSync, existsSync } from 'fs';
+import { accessSync, constants, existsSync } from 'fs';
 import path from 'path';
 
-const CONFIG_PATH = process.env.CONFIG_DIRECTORY
-  ? process.env.CONFIG_DIRECTORY
-  : path.join(__dirname, '../../config');
+import {
+  configDirectoryUsesFallback,
+  getConfigDirectory,
+  getDefaultConfigDirectory,
+} from './configDirectory';
 
-const DOCKER_PATH = `${CONFIG_PATH}/DOCKER`;
+const CONFIG_PATH = getConfigDirectory();
+
+const DOCKER_PATH = path.join(getDefaultConfigDirectory(), 'DOCKER');
 
 export const appDataStatus = (): boolean => {
   return !existsSync(DOCKER_PATH);
@@ -17,9 +21,13 @@ export const appDataPath = (): string => {
 
 export const appDataPermissions = (): boolean => {
   try {
-    accessSync(CONFIG_PATH);
+    accessSync(CONFIG_PATH, constants.W_OK);
     return true;
   } catch (err) {
     return false;
   }
+};
+
+export const appDataUsingFallback = (): boolean => {
+  return configDirectoryUsesFallback();
 };

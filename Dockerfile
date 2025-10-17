@@ -13,7 +13,7 @@ WORKDIR /app
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store CI=true pnpm install --prod --frozen-lockfile
 
-FROM base as build
+FROM base AS build
 
 RUN \
   case "${TARGETPLATFORM}" in \
@@ -32,7 +32,7 @@ RUN rm -rf .next/cache
 
 FROM node:22.20.0-alpine3.22@sha256:cb3143549582cc5f74f26f0992cdef4a422b22128cb517f94173a5f910fa4ee7
 ARG SOURCE_DATE_EPOCH
-ARG COMMIT_TAG
+ARG COMMIT_TAG=local
 ENV NODE_ENV=production
 ENV COMMIT_TAG=${COMMIT_TAG}
 
