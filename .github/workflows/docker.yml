@@ -20,7 +20,9 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-
+          build-args: |
+            COMMIT_TAG=${{ github.sha }}
+           
       - uses: docker/build-push-action@v5
         with:
           context: .
