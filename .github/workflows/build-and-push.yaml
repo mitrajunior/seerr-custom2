@@ -28,7 +28,6 @@ jobs:
           tags: |
             type=raw,value=latest
             type=sha,format=short
-          # remove o flavor latest=true para não duplicar
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.repository }}
@@ -63,7 +62,7 @@ jobs:
           echo "version=${DATE}+${SHORT_SHA}" >> "$GITHUB_OUTPUT"
           echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      # Mostrar/usar o digest (manifest list digest multi-arch)
+      # (Opcional) Ver o digest no log
       - name: Show image digest
         run: echo "Digest: ${{ steps.build.outputs.digest }}"
 
@@ -71,14 +70,8 @@ jobs:
       - name: Notify Mitr4-Store
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.MITR4_STORE_TOKEN }}  # PAT com acesso a mitrajunior/Mitr4-Store
+          token: ${{ secrets.MITR4_STORE_TOKEN }}
           repository: mitrajunior/Mitr4-Store
           event-type: bump-seerr-custom2
-          client-payload: >-
-            {
-              "appId": "mitr4-seerr-custom2",
-              "version": "${{ steps.ver.outputs.version }}",
-              "image": "ghcr.io/${{ github.repository }}:latest",
-              "digest": "${{ steps.build.outputs.digest }}",
-              "sha": "${{ steps.ver.outputs.short_sha }}"
-            }
+          client-payload: |
+            {"appId":"mitr4-seerr-custom2","version":"${{ steps.ver.outputs.version }}","image":"ghcr.io/${{ github.repository }}:latest","digest":"${{ steps.build.outputs.digest }}","sha":"${{ steps.ver.outputs.short_sha }}"}
