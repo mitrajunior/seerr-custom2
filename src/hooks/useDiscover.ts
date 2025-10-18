@@ -135,11 +135,11 @@ const useDiscover = <
   }
 
   const isEmpty = !isLoadingInitialData && titles?.length === 0;
-  const isReachingEnd =
-    isEmpty ||
-    (!!data && (data[data?.length - 1]?.results.length ?? 0) < 20) ||
-    (!!data && (data[data?.length - 1]?.totalResults ?? 0) <= size * 20) ||
-    (!!data && (data[data?.length - 1]?.totalResults ?? 0) < 41);
+  const lastPageData = data?.[data.length - 1];
+  const isLastPage =
+    !!lastPageData && lastPageData.page >= lastPageData.totalPages;
+
+  const isReachingEnd = isEmpty || isLastPage;
 
   return {
     isLoadingInitialData,
