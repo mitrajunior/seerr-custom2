@@ -56,12 +56,11 @@ const DiscoverTv = () => {
   const preparedFilters = prepareFilterValues(router.query);
   const updateQueryParams = useUpdateQueryParams({});
   const selectedAvailability = preparedFilters.availability ?? 'all';
-  const discoverFilters: FilterOptions = {
-    ...preparedFilters,
-    ...(selectedAvailability === 'all'
-      ? {}
-      : { availability: selectedAvailability }),
-  };
+  const { availability: _ignoredAvailability, ...activeFilters } = preparedFilters;
+  const discoverFilters: FilterOptions =
+    selectedAvailability === 'all'
+      ? activeFilters
+      : { ...activeFilters, availability: selectedAvailability };
   const shouldHideAvailable = selectedAvailability === 'none';
 
   const {

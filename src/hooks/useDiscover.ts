@@ -71,6 +71,10 @@ const useDiscover = <
         ...options,
       };
 
+      if (typeof params.availability === 'string' && params.availability === 'all') {
+        delete params.availability;
+      }
+
       const finalQueryString = Object.entries(params)
         .filter(([, value]) => value !== undefined && value !== null)
         .map(([paramKey, value]) =>
