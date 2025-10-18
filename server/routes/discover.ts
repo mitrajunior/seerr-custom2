@@ -54,6 +54,23 @@ const discoverRoutes = Router();
 const availabilityFilterSchema = z.enum(['all', 'full', 'any', 'none']);
 type AvailabilityFilter = z.infer<typeof availabilityFilterSchema>;
 
+interface DiscoverResultsResponse<T> {
+  page: number;
+  total_pages: number;
+  total_results: number;
+  results: T[];
+}
+
+const TMDB_PAGE_SIZE = 20;
+
+type DiscoverMovieResult = Awaited<
+  ReturnType<TheMovieDb['getDiscoverMovies']>
+>['results'][number];
+
+type DiscoverTvResult = Awaited<
+  ReturnType<TheMovieDb['getDiscoverTv']>
+>['results'][number];
+
 type ResultWithMedia<T> = {
   result: T;
   media?: Media;
@@ -107,6 +124,91 @@ const filterResultsByAvailability = <T extends { id: number }>(
   });
 };
 
+const getAvailabilityFilteredResults = async <T extends { id: number }>(
+  {
+    fetchPage,
+    mediaType,
+    availability,
+    user,
+    requestedPage,
+  }: {
+    fetchPage: (page: number) => Promise<DiscoverResultsResponse<T>>;
+    mediaType: MediaType;
+    availability: AvailabilityFilter;
+    user?: User;
+    requestedPage: number;
+  }
+): Promise<{
+  paginatedResults: ResultWithMedia<T>[];
+  totalPages: number;
+  totalResults: number;
+}> => {
+  const startIndex = (requestedPage - 1) * TMDB_PAGE_SIZE;
+  const endIndex = requestedPage * TMDB_PAGE_SIZE;
+
+  const aggregatedResults: ResultWithMedia<T>[] = [];
+  let currentPage = 1;
+  let totalPages = 1;
+  let lastResponse: DiscoverResultsResponse<T> | undefined;
+
+  while (aggregatedResults.length < endIndex && currentPage <= totalPages) {
+    const response = await fetchPage(currentPage);
+    lastResponse = response;
+    totalPages = response.total_pages ?? totalPages;
+
+    if (response.results.length) {
+      const media = await Media.getRelatedMedia(
+        user,
+        response.results.map((result) => result.id)
+      );
+
+      const pairedResults = pairResultsWithMedia(
+        response.results,
+        media,
+        mediaType
+      );
+
+      const filtered = filterResultsByAvailability(
+        pairedResults,
+        mediaType,
+        availability
+      );
+
+      aggregatedResults.push(...filtered);
+    }
+
+    currentPage += 1;
+
+    if (totalPages === 0) {
+      break;
+    }
+  }
+
+  const paginatedResults = aggregatedResults.slice(startIndex, endIndex);
+
+  const morePagesAvailable =
+    lastResponse !== undefined && currentPage <= lastResponse.total_pages;
+  const hasAdditionalFilteredResults = aggregatedResults.length > endIndex;
+  const moreResultsPossible = morePagesAvailable || hasAdditionalFilteredResults;
+
+  let totalResults = aggregatedResults.length;
+
+  if (moreResultsPossible) {
+    const minimum = (requestedPage + 1) * TMDB_PAGE_SIZE + 1;
+    totalResults = Math.max(totalResults, minimum);
+
+    if (totalResults < 41) {
+      totalResults = 41;
+    }
+  }
+
+  return {
+    paginatedResults,
+    totalPages: lastResponse?.total_pages ?? totalPages,
+    totalResults,
+  };
+};
+
 const QueryFilterOptions = z.object({
   page: z.coerce.string().optional(),
   sortBy: z.coerce.string().optional(),
@@ -150,53 +252,50 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
 
-    const data = await tmdb.getDiscoverMovies({
-      page: Number(query.page),
-      sortBy: query.sortBy as SortOptions,
-      language: req.locale ?? query.language,
-      originalLanguage: query.language,
-      genre: query.genre,
-      studio: query.studio,
-      primaryReleaseDateLte: query.primaryReleaseDateLte
-        ? new Date(query.primaryReleaseDateLte).toISOString().split('T')[0]
-        : undefined,
-      primaryReleaseDateGte: query.primaryReleaseDateGte
-        ? new Date(query.primaryReleaseDateGte).toISOString().split('T')[0]
-        : undefined,
-      keywords,
-      excludeKeywords,
-      withRuntimeGte: query.withRuntimeGte,
-      withRuntimeLte: query.withRuntimeLte,
-      voteAverageGte: query.voteAverageGte,
-      voteAverageLte: query.voteAverageLte,
-      voteCountGte: query.voteCountGte,
-      voteCountLte: query.voteCountLte,
-      watchProviders: query.watchProviders,
-      watchRegion: query.watchRegion,
-      certification: query.certification,
-      certificationGte: query.certificationGte,
-      certificationLte: query.certificationLte,
-      certificationCountry: query.certificationCountry,
-    });
+    const page = Number(query.page) || 1;
 
-    const media = await Media.getRelatedMedia(
-      req.user,
-      data.results.map((result) => result.id)
-    );
+    const fetchDiscoverMovies = async (
+      pageNumber: number
+    ): Promise<DiscoverResultsResponse<DiscoverMovieResult>> =>
+      await tmdb.getDiscoverMovies({
+        page: pageNumber,
+        sortBy: query.sortBy as SortOptions,
+        language: req.locale ?? query.language,
+        originalLanguage: query.language,
+        genre: query.genre,
+        studio: query.studio,
+        primaryReleaseDateLte: query.primaryReleaseDateLte
+          ? new Date(query.primaryReleaseDateLte).toISOString().split('T')[0]
+          : undefined,
+        primaryReleaseDateGte: query.primaryReleaseDateGte
+          ? new Date(query.primaryReleaseDateGte).toISOString().split('T')[0]
+          : undefined,
+        keywords,
+        excludeKeywords,
+        withRuntimeGte: query.withRuntimeGte,
+        withRuntimeLte: query.withRuntimeLte,
+        voteAverageGte: query.voteAverageGte,
+        voteAverageLte: query.voteAverageLte,
+        voteCountGte: query.voteCountGte,
+        voteCountLte: query.voteCountLte,
+        watchProviders: query.watchProviders,
+        watchRegion: query.watchRegion,
+        certification: query.certification,
+        certificationGte: query.certificationGte,
+        certificationLte: query.certificationLte,
+        certificationCountry: query.certificationCountry,
+      });
 
-    const resultsWithMedia = pairResultsWithMedia(
-      data.results,
-      media,
-      MediaType.MOVIE
-    );
-    const filteredResults = filterResultsByAvailability(
-      resultsWithMedia,
-      MediaType.MOVIE,
-      query.availability
-    );
+    const availabilityFilterActive =
+      query.availability && query.availability !== 'all';
 
-    let keywordData: TmdbKeyword[] = [];
-    if (keywords) {
+    const keywordData: TmdbKeyword[] = [];
+
+    const keywordFetch = async () => {
+      if (!keywords) {
+        return;
+      }
+
       const splitKeywords = keywords.split(',');
 
       const keywordResults = await Promise.all(
@@ -205,17 +304,54 @@ discoverRoutes.get('/movies', async (req, res, next) => {
         })
       );
 
-      keywordData = keywordResults.filter(
-        (keyword): keyword is TmdbKeyword => keyword !== null
+      keywordData.push(
+        ...keywordResults.filter((keyword): keyword is TmdbKeyword => keyword !== null)
       );
+    };
+
+    let pageResults: ResultWithMedia<DiscoverMovieResult>[];
+    let totalPages: number;
+    let totalResults: number;
+
+    if (availabilityFilterActive) {
+      await keywordFetch();
+
+      const availabilityResults = await getAvailabilityFilteredResults({
+        fetchPage: fetchDiscoverMovies,
+        mediaType: MediaType.MOVIE,
+        availability: query.availability,
+        user: req.user,
+        requestedPage: page,
+      });
+
+      pageResults = availabilityResults.paginatedResults;
+      totalPages = availabilityResults.totalPages;
+      totalResults = availabilityResults.totalResults;
+    } else {
+      const data = await fetchDiscoverMovies(page);
+
+      const media = await Media.getRelatedMedia(
+        req.user,
+        data.results.map((result) => result.id)
+      );
+
+      pageResults = pairResultsWithMedia(
+        data.results,
+        media,
+        MediaType.MOVIE
+      );
+      totalPages = data.total_pages;
+      totalResults = data.total_results;
+
+      await keywordFetch();
     }
 
     return res.status(200).json({
-      page: data.page,
-      totalPages: data.total_pages,
-      totalResults: filteredResults.length,
+      page,
+      totalPages,
+      totalResults,
       keywords: keywordData,
-      results: filteredResults.map(({ result, media: mediaInfo }) =>
+      results: pageResults.map(({ result, media: mediaInfo }) =>
         mapMovieResult(result, mediaInfo)
       ),
     });
@@ -447,54 +583,51 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     const query = ApiQuerySchema.parse(req.query);
     const keywords = query.keywords;
     const excludeKeywords = query.excludeKeywords;
-    const data = await tmdb.getDiscoverTv({
-      page: Number(query.page),
-      sortBy: query.sortBy as SortOptions,
-      language: req.locale ?? query.language,
-      genre: query.genre,
-      network: query.network ? Number(query.network) : undefined,
-      firstAirDateLte: query.firstAirDateLte
-        ? new Date(query.firstAirDateLte).toISOString().split('T')[0]
-        : undefined,
-      firstAirDateGte: query.firstAirDateGte
-        ? new Date(query.firstAirDateGte).toISOString().split('T')[0]
-        : undefined,
-      originalLanguage: query.language,
-      keywords,
-      excludeKeywords,
-      withRuntimeGte: query.withRuntimeGte,
-      withRuntimeLte: query.withRuntimeLte,
-      voteAverageGte: query.voteAverageGte,
-      voteAverageLte: query.voteAverageLte,
-      voteCountGte: query.voteCountGte,
-      voteCountLte: query.voteCountLte,
-      watchProviders: query.watchProviders,
-      watchRegion: query.watchRegion,
-      withStatus: query.status,
-      certification: query.certification,
-      certificationGte: query.certificationGte,
-      certificationLte: query.certificationLte,
-      certificationCountry: query.certificationCountry,
-    });
+    const page = Number(query.page) || 1;
 
-    const media = await Media.getRelatedMedia(
-      req.user,
-      data.results.map((result) => result.id)
-    );
+    const fetchDiscoverTv = async (
+      pageNumber: number
+    ): Promise<DiscoverResultsResponse<DiscoverTvResult>> =>
+      await tmdb.getDiscoverTv({
+        page: pageNumber,
+        sortBy: query.sortBy as SortOptions,
+        language: req.locale ?? query.language,
+        genre: query.genre,
+        network: query.network ? Number(query.network) : undefined,
+        firstAirDateLte: query.firstAirDateLte
+          ? new Date(query.firstAirDateLte).toISOString().split('T')[0]
+          : undefined,
+        firstAirDateGte: query.firstAirDateGte
+          ? new Date(query.firstAirDateGte).toISOString().split('T')[0]
+          : undefined,
+        originalLanguage: query.language,
+        keywords,
+        excludeKeywords,
+        withRuntimeGte: query.withRuntimeGte,
+        withRuntimeLte: query.withRuntimeLte,
+        voteAverageGte: query.voteAverageGte,
+        voteAverageLte: query.voteAverageLte,
+        voteCountGte: query.voteCountGte,
+        voteCountLte: query.voteCountLte,
+        watchProviders: query.watchProviders,
+        watchRegion: query.watchRegion,
+        withStatus: query.status,
+        certification: query.certification,
+        certificationGte: query.certificationGte,
+        certificationLte: query.certificationLte,
+        certificationCountry: query.certificationCountry,
+      });
 
-    const resultsWithMedia = pairResultsWithMedia(
-      data.results,
-      media,
-      MediaType.TV
-    );
-    const filteredResults = filterResultsByAvailability(
-      resultsWithMedia,
-      MediaType.TV,
-      query.availability
-    );
+    const availabilityFilterActive =
+      query.availability && query.availability !== 'all';
 
-    let keywordData: TmdbKeyword[] = [];
-    if (keywords) {
+    const keywordData: TmdbKeyword[] = [];
+
+    const keywordFetch = async () => {
+      if (!keywords) {
+        return;
+      }
+
       const splitKeywords = keywords.split(',');
 
       const keywordResults = await Promise.all(
@@ -503,17 +636,54 @@ discoverRoutes.get('/tv', async (req, res, next) => {
         })
       );
 
-      keywordData = keywordResults.filter(
-        (keyword): keyword is TmdbKeyword => keyword !== null
+      keywordData.push(
+        ...keywordResults.filter((keyword): keyword is TmdbKeyword => keyword !== null)
       );
+    };
+
+    let pageResults: ResultWithMedia<DiscoverTvResult>[];
+    let totalPages: number;
+    let totalResults: number;
+
+    if (availabilityFilterActive) {
+      await keywordFetch();
+
+      const availabilityResults = await getAvailabilityFilteredResults({
+        fetchPage: fetchDiscoverTv,
+        mediaType: MediaType.TV,
+        availability: query.availability,
+        user: req.user,
+        requestedPage: page,
+      });
+
+      pageResults = availabilityResults.paginatedResults;
+      totalPages = availabilityResults.totalPages;
+      totalResults = availabilityResults.totalResults;
+    } else {
+      const data = await fetchDiscoverTv(page);
+
+      const media = await Media.getRelatedMedia(
+        req.user,
+        data.results.map((result) => result.id)
+      );
+
+      pageResults = pairResultsWithMedia(
+        data.results,
+        media,
+        MediaType.TV
+      );
+      totalPages = data.total_pages;
+      totalResults = data.total_results;
+
+      await keywordFetch();
     }
 
     return res.status(200).json({
-      page: data.page,
-      totalPages: data.total_pages,
-      totalResults: filteredResults.length,
+      page,
+      totalPages,
+      totalResults,
       keywords: keywordData,
-      results: filteredResults.map(({ result, media: mediaInfo }) =>
+      results: pageResults.map(({ result, media: mediaInfo }) =>
         mapTvResult(result, mediaInfo)
       ),
     });
