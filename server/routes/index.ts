@@ -23,7 +23,12 @@ import {
   appDataPermissions,
   appDataStatus,
 } from '@server/utils/appDataVolume';
-import { getAppVersion, getCommitTag } from '@server/utils/appVersion';
+import {
+  getAppBaseVersion,
+  getAppVersion,
+  getCommitTag,
+  shouldCheckForUpdates,
+} from '@server/utils/appVersion';
 import restartFlag from '@server/utils/restartFlag';
 import { isPerson } from '@server/utils/typeHelpers';
 import { Router } from 'express';
@@ -47,40 +52,43 @@ const router = Router();
 router.use(checkUser);
 
 router.get<unknown, StatusResponse>('/status', async (req, res) => {
-  const githubApi = new GithubAPI();
-
   const currentVersion = getAppVersion();
+  const baseVersion = getAppBaseVersion();
   const commitTag = getCommitTag();
   let updateAvailable = false;
   let commitsBehind = 0;
 
-  if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
-    const commits = await githubApi.getSeerrCommits();
+  if (shouldCheckForUpdates()) {
+    const githubApi = new GithubAPI();
 
-    if (commits.length) {
-      const filteredCommits = commits.filter(
-        (commit) => !commit.commit.message.includes('[skip ci]')
-      );
-      if (filteredCommits[0].sha !== commitTag) {
-        updateAvailable = true;
+    if (currentVersion.startsWith('develop-') && commitTag !== 'local') {
+      const commits = await githubApi.getSeerrCommits();
+
+      if (commits.length) {
+        const filteredCommits = commits.filter(
+          (commit) => !commit.commit.message.includes('[skip ci]')
+        );
+        if (filteredCommits[0].sha !== commitTag) {
+          updateAvailable = true;
+        }
+
+        const commitIndex = filteredCommits.findIndex(
+          (commit) => commit.sha === commitTag
+        );
+
+        if (updateAvailable) {
+          commitsBehind = commitIndex;
+        }
       }
+    } else if (commitTag !== 'local') {
+      const releases = await githubApi.getSeerrReleases();
 
-      const commitIndex = filteredCommits.findIndex(
-        (commit) => commit.sha === commitTag
-      );
+      if (releases.length) {
+        const latestVersion = releases[0];
 
-      if (updateAvailable) {
-        commitsBehind = commitIndex;
-      }
-    }
-  } else if (commitTag !== 'local') {
-    const releases = await githubApi.getSeerrReleases();
-
-    if (releases.length) {
-      const latestVersion = releases[0];
-
-      if (!latestVersion.name.includes(currentVersion)) {
-        updateAvailable = true;
+        if (!latestVersion.name.includes(baseVersion)) {
+          updateAvailable = true;
+        }
       }
     }
   }
