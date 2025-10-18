@@ -34,7 +34,7 @@ const VersionStatus = ({ onClick }: VersionStatusProps) => {
 
   const versionStream =
     data.commitTag === 'local'
-      ? 'Keep it up! 👍'
+      ? 'Local Version:'
       : data.version.startsWith('develop-')
       ? intl.formatMessage(messages.streamdevelop)
       : intl.formatMessage(messages.streamstable);
@@ -67,7 +67,7 @@ const VersionStatus = ({ onClick }: VersionStatusProps) => {
         <span className="font-bold">{versionStream}</span>
         <span className="truncate">
           {data.commitTag === 'local' ? (
-            '(⌐■_■)'
+            'mitr4-custom 👍'
           ) : data.commitsBehind > 0 ? (
             intl.formatMessage(messages.commitsbehind, {
               commitsBehind: data.commitsBehind,
