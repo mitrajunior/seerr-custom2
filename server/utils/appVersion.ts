@@ -159,7 +159,7 @@ export const getAppVersion = (): string => {
   const baseVersion = getAppBaseVersion();
   let finalVersion = baseVersion;
 
-  if (baseVersion === '3.1.0') {
+  if (baseVersion === '0.1.0') {
     finalVersion = `develop-${getCommitTag()}`;
   }
 
