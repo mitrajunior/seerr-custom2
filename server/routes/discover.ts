@@ -213,7 +213,7 @@ discoverRoutes.get('/movies', async (req, res, next) => {
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
-      totalResults: filteredResults.length,
+      totalResults: data.total_results,
       keywords: keywordData,
       results: filteredResults.map(({ result, media: mediaInfo }) =>
         mapMovieResult(result, mediaInfo)
@@ -511,7 +511,7 @@ discoverRoutes.get('/tv', async (req, res, next) => {
     return res.status(200).json({
       page: data.page,
       totalPages: data.total_pages,
-      totalResults: filteredResults.length,
+      totalResults: data.total_results,
       keywords: keywordData,
       results: filteredResults.map(({ result, media: mediaInfo }) =>
         mapTvResult(result, mediaInfo)
