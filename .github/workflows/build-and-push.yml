@@ -1,0 +1,83 @@
+name: build-and-push
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  docker:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # Multi-arch (amd64/arm64)
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+
+      # Tags/labels
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            ghcr.io/${{ github.repository_owner }}/seerr-custom2
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+          flavor: |
+            latest=true
+          labels: |
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=${{ github.repository }}
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.repository_owner }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: build
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: Dockerfile
+          push: true
+          platforms: linux/amd64,linux/arm64
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: |
+            COMMIT_TAG=${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      # >>> NOVO: calcula versão (ex.: 2025.10.18+abc1234)
+      - name: Compute version string
+        id: ver
+        run: |
+          SHORT_SHA=${GITHUB_SHA::7}
+          DATE=$(date -u +%Y.%m.%d)
+          echo "version=${DATE}+${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+
+      # >>> NOVO: expõe digest da imagem publicada
+      - name: Show image digest
+        run: echo "Digest: ${{ steps.build.outputs.digest }}"
+
+      # >>> NOVO: notifica a Mitr4-Store para fazer bump do manifest
+      - name: Notify Mitr4-Store
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.MITR4_STORE_TOKEN }}  # PAT com acesso ao repo da Store
+          repository: mitrajunior/Mitr4-Store
+          event-type: bump-seerr-custom2
+          client-payload: >-
+            {
+              "appId": "mitr4-seerr-custom2",
+              "version": "${{ steps.ver.outputs.version }}",
+              "image": "ghcr.io/${{ github.repository_owner }}/seerr-custom2:latest",
+              "digest": "${{ steps.build.outputs.digest }}",
+              "sha": "${{ steps.ver.outputs.short_sha }}"
+            }
