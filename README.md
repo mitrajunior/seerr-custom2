@@ -2,6 +2,7 @@
 
 Esta build personalizada do Seerr introduz várias melhorias centradas na experiência de descoberta de conteúdos, robustez do backend e simplificação do deploy. Abaixo encontras um resumo do que mudou nesta versão.
 
+
 ## Novidades principais
 
 - **Filtros de disponibilidade na Discover**: podes limitar os resultados por disponibilidade total, parcial ou inexistente tanto em filmes como em séries, diretamente da interface. A API cruza cada resultado com o estado do teu servidor antes de aplicar o filtro, garantindo listas consistentes.【F:server/routes/discover.ts†L41-L122】【F:src/components/Discover/DiscoverMovies/index.tsx†L1-L118】【F:src/components/Discover/DiscoverTv/index.tsx†L1-L111】
@@ -18,6 +19,7 @@ Esta build personalizada do Seerr introduz várias melhorias centradas na experi
 ## Instalação via Umbrel (Mitr4 Store)
 
 Esta versão também pode ser instalada diretamente numa Umbrel através da nossa Community App Store. Adiciona o repositório [Mitr4 Store](https://github.com/mitrajunior/Mitr4-Store) na tua Umbrel, procura pela app **Seerr Custom** e segue o fluxo de instalação habitual da store.
+
 
 ## Como testar
 
