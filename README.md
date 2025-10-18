@@ -2,7 +2,6 @@
 
 Esta build personalizada do Seerr introduz várias melhorias centradas na experiência de descoberta de conteúdos, robustez do backend e simplificação do deploy. Abaixo encontras um resumo do que mudou nesta versão.
 
-> ⚠️ Esta é uma edição limitada, mantida à parte da linha oficial do Seerr. Não recebe automaticamente novas funcionalidades nem correções da versão upstream.
 
 ## Novidades principais
 
@@ -21,11 +20,6 @@ Esta build personalizada do Seerr introduz várias melhorias centradas na experi
 
 Esta versão também pode ser instalada diretamente numa Umbrel através da nossa Community App Store. Adiciona o repositório [Mitr4 Store](https://github.com/mitrajunior/Mitr4-Store) na tua Umbrel, procura pela app **Seerr Custom** e segue o fluxo de instalação habitual da store.
 
-## Demonstração visual
-
-![Ecrã de filmes com filtros de disponibilidade aplicados](https://raw.githubusercontent.com/mitrajunior/seerr-custom2/main/public/movies.png)
-
-![Ecrã de séries mostrando o estado atualizado por disponibilidade](https://raw.githubusercontent.com/mitrajunior/seerr-custom2/main/public/series.png)
 
 ## Como testar
 
