@@ -18,6 +18,10 @@ if (existsSync(COMMIT_TAG_PATH)) {
 }
 
 export const getCommitTag = (): string => {
+  if (!shouldCheckForUpdates()) {
+    return 'local';
+  }
+
   return commitTag;
 };
 
