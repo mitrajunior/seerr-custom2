@@ -56,11 +56,10 @@ const DiscoverMovies = () => {
 
   const preparedFilters = prepareFilterValues(router.query);
   const selectedAvailability = preparedFilters.availability ?? 'all';
-  const { availability: _ignoredAvailability, ...activeFilters } = preparedFilters;
-  const discoverFilters: FilterOptions =
-    selectedAvailability === 'all'
-      ? activeFilters
-      : { ...activeFilters, availability: selectedAvailability };
+  const discoverFilters: FilterOptions = {
+    ...preparedFilters,
+    availability: selectedAvailability,
+  };
   const shouldHideAvailable = selectedAvailability === 'none';
 
   const {
