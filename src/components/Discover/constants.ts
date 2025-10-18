@@ -159,7 +159,7 @@ export const prepareFilterValues = (
     filterValues.status = values.status;
   }
 
-  if (values.availability && values.availability !== 'all') {
+  if (values.availability) {
     filterValues.availability = values.availability;
   }
 
