@@ -1,4 +1,5 @@
 name: build-and-push
+
 on:
   push:
     branches: [ main ]
@@ -14,21 +15,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Multi-arch (amd64/arm64)
+      # Multi-arch
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
 
-      # Tags/labels
+      # Tags/labels (sem duplicar 'latest')
       - id: meta
         uses: docker/metadata-action@v5
         with:
           images: |
-            ghcr.io/${{ github.repository_owner }}/seerr-custom2
+            ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
             type=sha,format=short
-          flavor: |
-            latest=true
+          # remove o flavor latest=true para não duplicar
           labels: |
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=${{ github.repository }}
@@ -36,7 +36,7 @@ jobs:
       - uses: docker/login-action@v3
         with:
           registry: ghcr.io
-          username: ${{ github.repository_owner }}
+          username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - id: build
@@ -53,31 +53,32 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # >>> NOVO: calcula versão (ex.: 2025.10.18+abc1234)
+      # Versão legível para a Store (ex.: 2025.10.18+abc1234)
       - name: Compute version string
         id: ver
+        shell: bash
         run: |
-          SHORT_SHA=${GITHUB_SHA::7}
-          DATE=$(date -u +%Y.%m.%d)
-          echo "version=${DATE}+${SHORT_SHA}" >> $GITHUB_OUTPUT
-          echo "short_sha=${SHORT_SHA}" >> $GITHUB_OUTPUT
+          SHORT_SHA="${GITHUB_SHA::7}"
+          DATE="$(date -u +%Y.%m.%d)"
+          echo "version=${DATE}+${SHORT_SHA}" >> "$GITHUB_OUTPUT"
+          echo "short_sha=${SHORT_SHA}" >> "$GITHUB_OUTPUT"
 
-      # >>> NOVO: expõe digest da imagem publicada
+      # Mostrar/usar o digest (manifest list digest multi-arch)
       - name: Show image digest
         run: echo "Digest: ${{ steps.build.outputs.digest }}"
 
-      # >>> NOVO: notifica a Mitr4-Store para fazer bump do manifest
+      # Notificar a Mitr4-Store para fazer o bump do manifest
       - name: Notify Mitr4-Store
         uses: peter-evans/repository-dispatch@v3
         with:
-          token: ${{ secrets.MITR4_STORE_TOKEN }}  # PAT com acesso ao repo da Store
+          token: ${{ secrets.MITR4_STORE_TOKEN }}  # PAT com acesso a mitrajunior/Mitr4-Store
           repository: mitrajunior/Mitr4-Store
           event-type: bump-seerr-custom2
           client-payload: >-
             {
               "appId": "mitr4-seerr-custom2",
               "version": "${{ steps.ver.outputs.version }}",
-              "image": "ghcr.io/${{ github.repository_owner }}/seerr-custom2:latest",
+              "image": "ghcr.io/${{ github.repository }}:latest",
               "digest": "${{ steps.build.outputs.digest }}",
               "sha": "${{ steps.ver.outputs.short_sha }}"
             }
