@@ -5,9 +5,13 @@ import { randomUUID } from 'crypto';
 import { constants as fsConstants } from 'fs';
 import fs from 'fs/promises';
 import { merge } from 'lodash';
-import os from 'os';
 import path from 'path';
 import webpush from 'web-push';
+
+import {
+  getDefaultConfigDirectory,
+  getFallbackConfigDirectories,
+} from '@server/utils/configDirectory';
 
 export interface Library {
   id: string;
@@ -368,24 +372,16 @@ export interface AllSettings {
   migrations: string[];
 }
 
-const DEFAULT_CONFIG_DIRECTORY = process.env.CONFIG_DIRECTORY
-  ? process.env.CONFIG_DIRECTORY
-  : path.join(__dirname, '../../../config');
+const DEFAULT_CONFIG_DIRECTORY = getDefaultConfigDirectory();
+const FALLBACK_CONFIG_DIRECTORIES = getFallbackConfigDirectories();
 
 const DEFAULT_SETTINGS_PATH = path.join(
   DEFAULT_CONFIG_DIRECTORY,
   'settings.json'
 );
 
-const FALLBACK_CONFIG_DIRECTORY = path.join(
-  os.tmpdir(),
-  'jellyseerr',
-  'config'
-);
-
-const FALLBACK_SETTINGS_PATH = path.join(
-  FALLBACK_CONFIG_DIRECTORY,
-  'settings.json'
+const FALLBACK_SETTINGS_PATHS = FALLBACK_CONFIG_DIRECTORIES.map((directory) =>
+  path.join(directory, 'settings.json')
 );
 
 const ensureWritableDirectory = async (directory: string): Promise<boolean> => {
@@ -422,6 +418,8 @@ class Settings {
   private settingsPath: string = DEFAULT_SETTINGS_PATH;
 
   private async ensureSettingsPath(): Promise<void> {
+    const currentDirectory = path.dirname(this.settingsPath);
+
     if (this.settingsPath === DEFAULT_SETTINGS_PATH) {
       const isWritable = await ensureWritableDirectory(
         DEFAULT_CONFIG_DIRECTORY
@@ -430,17 +428,20 @@ class Settings {
       if (isWritable) {
         return;
       }
+    } else if (await ensureWritableDirectory(currentDirectory)) {
+      return;
     }
 
-    const fallbackWritable = await ensureWritableDirectory(
-      FALLBACK_CONFIG_DIRECTORY
-    );
+    for (const fallbackDirectory of FALLBACK_CONFIG_DIRECTORIES) {
+      const writable = await ensureWritableDirectory(fallbackDirectory);
 
-    if (!fallbackWritable) {
-      throw new Error('Fallback config directory is not writable.');
+      if (writable) {
+        this.settingsPath = path.join(fallbackDirectory, 'settings.json');
+        return;
+      }
     }
 
-    this.settingsPath = FALLBACK_SETTINGS_PATH;
+    throw new Error('Fallback config directory is not writable.');
   }
 
   constructor(initialSettings?: AllSettings) {
@@ -858,15 +859,18 @@ class Settings {
     }
 
     if (!data) {
-      try {
-        data = await fs.readFile(FALLBACK_SETTINGS_PATH, 'utf-8');
-        loadedFrom = FALLBACK_SETTINGS_PATH;
-        this.settingsPath = FALLBACK_SETTINGS_PATH;
-      } catch (error) {
-        const err = error as NodeJS.ErrnoException;
+      for (const fallbackSettingsPath of FALLBACK_SETTINGS_PATHS) {
+        try {
+          data = await fs.readFile(fallbackSettingsPath, 'utf-8');
+          loadedFrom = fallbackSettingsPath;
+          this.settingsPath = fallbackSettingsPath;
+          break;
+        } catch (error) {
+          const err = error as NodeJS.ErrnoException;
 
-        if (err.code && err.code !== 'ENOENT') {
-          throw error;
+          if (err.code && err.code !== 'ENOENT' && err.code !== 'EACCES') {
+            throw error;
+          }
         }
       }
     }
