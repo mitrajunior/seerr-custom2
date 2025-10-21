@@ -38,4 +38,8 @@ Esta versão também pode ser instalada diretamente numa Umbrel através da noss
 2. Acede a `http://localhost:5057` (via proxy Umbrel) e experimenta os filtros de disponibilidade em *Descobrir*.
 3. Verifica os logs gerados em `config/logs` (ou no diretório de fallback indicado na consola) para confirmar a nova gestão automática.
 
+### Persistência das configurações
+
+O `docker compose` agora monta um volume dedicado em `/config` e define a variável `CONFIG_DIRECTORY` para esse caminho, garantindo que o `settings.json` e a base de dados SQLite (quando usada) sobrevivem aos reinícios do contentor sem passos adicionais de setup. Para aproveitar noutros ambientes basta mapear um volume persistente para `/config` ou definir `CONFIG_DIRECTORY` a apontar para um diretório gravável e estável.
+
 Bom proveito! 😊

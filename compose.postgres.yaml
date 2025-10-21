@@ -18,11 +18,13 @@ services:
       DB_LOG_QUERIES: "false"
       DB_USE_SSL: "false"
       TZ: "Europe/Lisbon"
+      CONFIG_DIRECTORY: "/config"
     volumes:
       # se fores desenvolver, mantém; para prod, recomendo remover o bind da raiz do projeto
       - .:/app:rw,cached
       - /app/node_modules
       - /app/.next
+      - config:/config
     depends_on:
       postgres:
         condition: service_started
@@ -52,3 +54,4 @@ services:
 
 volumes:
   postgres:
+  config:
