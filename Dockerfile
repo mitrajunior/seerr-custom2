@@ -38,6 +38,9 @@ ENV COMMIT_TAG=${COMMIT_TAG}
 
 RUN apk add --no-cache tzdata
 
+RUN mkdir -p /config \
+  && chown node:node /config
+
 USER node:node
 
 WORKDIR /app
